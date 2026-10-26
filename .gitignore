@@ -1,0 +1,20 @@
+# Terraform generated files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+
+# Sensitive local configuration
+*.tfvars
+*.tfvars.json
+.terraformrc
+terraform.rc
+
+# Python generated files
+__pycache__/
+*.pyc
+
+# Environment files
+.env
