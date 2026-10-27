@@ -1,4 +1,5 @@
-﻿name: Build and Push Docker Image to ECR
+
+name: Build, Push, and Deploy to EKS
 
 on:
   push:
@@ -6,6 +7,7 @@ on:
       - main
     paths:
       - "app/**"
+      - "helm/**"
       - ".github/workflows/build-push-ecr.yml"
 
   workflow_dispatch:
@@ -17,10 +19,13 @@ permissions:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: demo-microservice
+  EKS_CLUSTER_NAME: eks-assessment
+  HELM_RELEASE_NAME: demo
+  HELM_CHART_PATH: ./helm/demo-microservice
 
 jobs:
-  build-and-push:
-    name: Build and Push
+  build-push-deploy:
+    name: Build, Push, and Deploy
     runs-on: ubuntu-latest
 
     steps:
@@ -45,3 +50,32 @@ jobs:
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region "$AWS_REGION" \
+            --name "$EKS_CLUSTER_NAME"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.19.2
+
+      - name: Deploy application to EKS
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace default \
+            --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}" \
+            --set image.tag="${{ github.sha }}" \
+            --wait \
+            --timeout 5m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/demo \
+            --namespace default \
+            --timeout=180s
+
+          kubectl get deployment demo --namespace default
+          kubectl get pods --namespace default
